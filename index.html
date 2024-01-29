@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Image Cropper</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" />
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: start;
+            gap: 20px;
+        }
+
+        .container {
+            margin-top: 20px;
+        }
+
+        #imageForm {
+            order: 2;
+            /* Image input form and cropper on the right */
+        }
+
+        .cropper-container {
+            width: 60%;
+            margin: 20px;
+            text-align: center;
+        }
+
+        #image {
+            max-width: 100%;
+            height: auto;
+        }
+
+        #similarImagesContainer {
+            order: 1;
+            /* Results on the left */
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            width: 40%;
+            /* Adjust as needed */
+        }
+
+        #similarImagesContainer img {
+            margin-top: 60px;
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="similarImagesContainer" class="container"></div> <!-- Container for similar images -->
+    <div class="container" id="imageFormContainer">
+        <form id="imageForm" enctype="multipart/form-data">
+            <input type="file" id="imageInput" accept="image/*">
+        </form>
+        <div class="cropper-container">
+            <img id="image" style="display:none;">
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <script>
+        var image = document.getElementById('image');
+        var input = document.getElementById('imageInput');
+        var cropper;
+
+        // Debounce function to limit the rate of API calls
+        function debounce(func, delay) {
+            let debounceTimer;
+            return function () {
+                const context = this;
+                const args = arguments;
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => func.apply(context, args), delay);
+            };
+        }
+
+        input.addEventListener('change', function (e) {
+            var files = e.target.files;
+            if (files && files.length > 0) {
+                var file = files[0];
+                image.src = URL.createObjectURL(file);
+                image.style.display = 'block';
+
+                if (cropper) {
+                    cropper.destroy();
+                }
+
+                cropper = new Cropper(image, {
+                    viewMode: 1,
+                    zoomable: true,
+                    crop: debounce(function (event) {
+                        sendCroppedImage();
+                    }, 500), // Delay of 1 second
+                });
+            }
+        });
+
+        function sendCroppedImage() {
+            cropper.getCroppedCanvas().toBlob(function (blob) {
+                var formData = new FormData(document.getElementById('imageForm'));
+                formData.append('file', blob);
+
+                fetch('http://localhost:8000/upload/', {
+                    method: 'POST',
+                    body: formData
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        displaySimilarImages(data.similar_images);
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            });
+        }
+
+        function displaySimilarImages(imagePaths) {
+            var container = document.getElementById('similarImagesContainer');
+            container.innerHTML = ''; // Clear previous images
+            imagePaths.forEach(path => {
+                var img = document.createElement('img');
+                img.src = path;
+                container.appendChild(img);
+            });
+        }
+    </script>
+</body>
+
+</html>
